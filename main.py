@@ -27,7 +27,10 @@ class OpenGLWidget(QOpenGLWidget):
     def keyReleaseEvent(self, event: PySide6.QtGui.QKeyEvent) -> None:
         super().keyReleaseEvent(event)
 
+    
+
     def setupGeometry(self):
+        # Load the shader and compile it
         vertex_shader = glCreateShader(GL_VERTEX_SHADER)
         glShaderSource(vertex_shader, vert_shader_code)
         glCompileShader(vertex_shader)
@@ -38,10 +41,12 @@ class OpenGLWidget(QOpenGLWidget):
             info_log = glGetShaderInfoLog(vertex_shader, 512, None)
             print(info_log)
 
+        # Again load the shader and compile it
         fragment_shader = glCreateShader(GL_FRAGMENT_SHADER)
         glShaderSource(fragment_shader, frag_shader_code)
         glCompileShader(fragment_shader)
 
+        # Create a shader program to link both the shaders
         shader_program = glCreateProgram()
         glAttachShader(shader_program, vertex_shader)
         glAttachShader(shader_program, fragment_shader)
@@ -53,27 +58,40 @@ class OpenGLWidget(QOpenGLWidget):
             info_log = glGetProgramInfoLog(shader_program, 512, None)
             print(info_log)
 
+        # Yay! Now we use the shader program
         glUseProgram(shader_program)
-
+        # We delete the shaders cuz they are linked and no longer needed
         glDeleteShader(vertex_shader)
         glDeleteShader(fragment_shader)
 
+        # The vertices of the triangle
         vertices = np.array([
-            -0.5, -0.5, 0,
+            0.5, 0.5, 0,
             0.5, -0.5, 0,
-            0, 0.5, 0
+            -0.5, -0.5, 0,
+            -0.5, 0.5, 0
         ], dtype='float32')
 
+        indices = np.array([
+            0, 1, 3,
+            1, 2, 3
+        ])
+
+        # wut..?
         vbo = glGenBuffers(1)
         vao = glGenVertexArrays(1)
+        ebo = glGenBuffers(1)
 
         glBindVertexArray(vao)
 
         glBindBuffer(GL_ARRAY_BUFFER, vbo)
         glBufferData(GL_ARRAY_BUFFER, vertices.nbytes, vertices, GL_STATIC_DRAW)
 
-        stride = 3 * ctypes.sizeof(GLfloat)
-        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, stride, ctypes.c_void_p(0))
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo)
+        glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.nbytes, indices, GL_STATIC_DRAW)
+
+        stride = 3 * ctypes.sizeof(GLfloat)  # Float size is 32 buts or 4 bytes
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, stride, None)
         glEnableVertexAttribArray(0)
 
         glBindBuffer(GL_ARRAY_BUFFER, 0)
@@ -81,7 +99,14 @@ class OpenGLWidget(QOpenGLWidget):
 
         glUseProgram(shader_program)
         glBindVertexArray(vao)
-        glDrawArrays(GL_TRIANGLES, 0, 3)
+        # glDrawArrays(GL_TRIANGLES, 0, 3)
+        glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0)
+        # glBindVertexArray(0)
+
+        glDeleteVertexArrays(1, vao)
+        glDeleteBuffers(1)
+        glDeleteBuffers(1)
+        glDeleteProgram(shader_program)
 
     def paintGL(self):
         glClearColor(0.2, 0.3, 0.3, 1.0)
