@@ -1,3 +1,4 @@
+import ctypes
 import sys
 
 import numpy as np
@@ -56,8 +57,9 @@ class GLWidget(QOpenGLWidget):
         self.array_buffer.allocate(self.triangle_vertex_array.tobytes(), self.triangle_vertex_array.nbytes)
 
         self.vao.bind()
-        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * ctypes.sizeof(GLfloat), None)
-        self.gl.glEnableVertexAttribArray(0)
+        posAttrib = self.shader_program.attributeLocation("aPos")
+        self.shader_program.enableAttributeArray(posAttrib)
+        self.shader_program.setAttributeBuffer(posAttrib, GL_FLOAT, 0, 3, 3 * ctypes.sizeof(GLfloat))
 
         self.shader_program.release()
 
