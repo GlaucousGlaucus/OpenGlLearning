@@ -99,7 +99,6 @@ class GLWidget(QOpenGLWidget):
             print("Shader Program Loaded")
 
         # Use Shader Program and delete shaders as they are not needed anymore
-        glUseProgram(self.shader_program)
         glDeleteShader(self.vertex_shader)
         glDeleteShader(self.frag_shader)
 
