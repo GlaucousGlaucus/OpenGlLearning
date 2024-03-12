@@ -1,9 +1,10 @@
-import ctypes
 import sys
 
 import numpy as np
 from OpenGL.GL import *
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QOpenGLFunctions, QSurfaceFormat, QOpenGLContext
+from PySide6.QtOpenGL import QOpenGLShaderProgram, QOpenGLShader, QOpenGLVertexArrayObject, QOpenGLBuffer
 from PySide6.QtOpenGLWidgets import QOpenGLWidget
 from PySide6.QtWidgets import QMainWindow, QApplication
 
@@ -13,94 +14,67 @@ vert_shader_code = read_shader("vertex_shader.glsl")
 frag_shader_code = read_shader("fragment_shader.glsl")
 
 
+class GL(QOpenGLFunctions):
+
+    def __init__(self, context: QOpenGLContext) -> None:
+        super().__init__()
+        self.context = context
+
+
 class GLWidget(QOpenGLWidget):
 
     def __init__(self) -> None:
         super().__init__()
-
-        self.frag_shader = None
-        self.shader_program = None
-        self.vertex_shader = None
-        self.vao = None
         self.triangle_vertex_array = None
-        self.vbo = None
+        self.shader_program = None
+        self.gl = GL(self.context())
+        self.array_buffer = QOpenGLBuffer()
+        self.vao = QOpenGLVertexArrayObject()
 
     def initializeGL(self) -> None:
-        glViewport(0, 0, 800, 600)
-        glClearColor(0.2, 0.3, 0.3, 1.0)
-        glClear(GL_COLOR_BUFFER_BIT)
+        super().initializeGL()
+        # I have no idea what is going on
+        # TODO: Have some idea about what is going on
+        self.gl.initializeOpenGLFunctions()
+        self.gl.glClearColor(0.2, 0.3, 0.3, 1.0)
 
-        self.loadShaders()
-        self.initGeometry()
+        self.shader_program = QOpenGLShaderProgram()
+        self.shader_program.addShaderFromSourceCode(QOpenGLShader.ShaderTypeBit.Vertex, vert_shader_code)
+        self.shader_program.addShaderFromSourceCode(QOpenGLShader.ShaderTypeBit.Fragment, frag_shader_code)
+        self.shader_program.link()
+        self.shader_program.bind()
 
-    def resizeGL(self, w: int, h: int) -> None:
-        super().resizeGL(w, h)
-        glViewport(0, 0, w, h)
-
-    def paintGL(self) -> None:
-        """Rendering goes here"""
-        super().paintGL()
-
-        glUseProgram(self.shader_program)
-        glBindVertexArray(self.vao)
-        glDrawArrays(GL_TRIANGLES, 0, 3)
-
-    def initGeometry(self):
-        """Geometry initialization goes here"""
         self.triangle_vertex_array = np.array([
             -0.5, -0.5, 0.0,
             0.5, -0.5, 0.0,
             0.0, 0.5, 0.0
         ], dtype="float32")
+        self.array_buffer.create()
+        self.vao.create()
 
-        # Create a VBO and store the data in it
-        self.vbo = glGenBuffers(1)
-        self.vao = glGenVertexArrays(1)
-        glBindVertexArray(self.vao)
+        self.array_buffer.bind()
+        self.array_buffer.allocate(self.triangle_vertex_array.tobytes(), self.triangle_vertex_array.nbytes)
 
-        glBindBuffer(GL_ARRAY_BUFFER, self.vbo)
-        glBufferData(GL_ARRAY_BUFFER, self.triangle_vertex_array.nbytes, self.triangle_vertex_array, GL_STATIC_DRAW)
-
+        self.vao.bind()
         glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * ctypes.sizeof(GLfloat), None)
-        glEnableVertexAttribArray(0)
+        self.gl.glEnableVertexAttribArray(0)
 
-        glBindBuffer(GL_ARRAY_BUFFER, 0)
-        glBindVertexArray(0)
+        self.shader_program.release()
 
-    def loadShaders(self):
-        self.vertex_shader = glCreateShader(GL_VERTEX_SHADER)
-        glShaderSource(self.vertex_shader, vert_shader_code)
-        glCompileShader(self.vertex_shader)
+    def initGeometry(self):
+        """Geometry initialization goes here"""
 
-        if not glGetShaderiv(self.vertex_shader, GL_COMPILE_STATUS):
-            print("Compile shader Error:", glGetShaderInfoLog(self.vertex_shader))
-        else:
-            print("Vertex Shader Loaded")
+    def resizeGL(self, w: int, h: int) -> None:
+        super().resizeGL(w, h)
 
-        self.frag_shader = glCreateShader(GL_FRAGMENT_SHADER)
-        glShaderSource(self.frag_shader, frag_shader_code)
-        glCompileShader(self.frag_shader)
+    def paintGL(self) -> None:
+        """Rendering goes here"""
+        super().paintGL()
 
-        if not glGetShaderiv(self.frag_shader, GL_COMPILE_STATUS):
-            print("Compile shader Error:", glGetShaderInfoLog(self.frag_shader))
-        else:
-            print("Fragment Shader Loaded")
-
-        # Load the shader program
-
-        self.shader_program = glCreateProgram()
-        glAttachShader(self.shader_program, self.vertex_shader)
-        glAttachShader(self.shader_program, self.frag_shader)
-        glLinkProgram(self.shader_program)
-
-        if not glGetProgramiv(self.shader_program, GL_LINK_STATUS):
-            print("Link Program Error:", glGetProgramInfoLog(self.shader_program, 512, None))
-        else:
-            print("Shader Program Loaded")
-
-        # Use Shader Program and delete shaders as they are not needed anymore
-        glDeleteShader(self.vertex_shader)
-        glDeleteShader(self.frag_shader)
+        self.shader_program.bind()
+        self.array_buffer.bind()
+        self.gl.glDrawArrays(GL_TRIANGLES, 0, 3)
+        self.shader_program.release()
 
 
 class MainWindow(QMainWindow):
