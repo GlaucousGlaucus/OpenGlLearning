@@ -4,8 +4,6 @@ import sys
 import numpy as np
 from OpenGL.GL import *
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QOpenGLFunctions, QSurfaceFormat, QOpenGLContext
-from PySide6.QtOpenGL import QOpenGLShaderProgram, QOpenGLShader, QOpenGLVertexArrayObject, QOpenGLBuffer
 from PySide6.QtOpenGLWidgets import QOpenGLWidget
 from PySide6.QtWidgets import QMainWindow, QApplication
 
@@ -13,13 +11,6 @@ from util import read_shader
 
 vert_shader_code = read_shader("vertex_shader.glsl")
 frag_shader_code = read_shader("fragment_shader.glsl")
-
-
-class GL(QOpenGLFunctions):
-
-    def __init__(self, context: QOpenGLContext) -> None:
-        super().__init__()
-        self.context = context
 
 
 class GLWidget(QOpenGLWidget):
@@ -35,55 +26,54 @@ class GLWidget(QOpenGLWidget):
 
     def initializeGL(self) -> None:
         super().initializeGL()
-        # Vertex data for a simple square made of two triangles
+        # build and compile our shader program
+        vertexShader = glCreateShader(GL_VERTEX_SHADER)
+        glShaderSource(vertexShader, vert_shader_code)
+        glCompileShader(vertexShader)
 
-        self.initShaders()
-        self.initGeometry()
+        fragmentShader = glCreateShader(GL_FRAGMENT_SHADER)
+        glShaderSource(fragmentShader, frag_shader_code)
+        glCompileShader(fragmentShader)
 
-    def initShaders(self):
-        vertex_shader = glCreateShader(GL_VERTEX_SHADER)
-        glShaderSource(vertex_shader, vert_shader_code)
-        glCompileShader(vertex_shader)
+        self.shaderProgram = glCreateProgram()
+        glAttachShader(self.shaderProgram, vertexShader)
+        glAttachShader(self.shaderProgram, fragmentShader)
+        glLinkProgram(self.shaderProgram)
 
-        frag_shader = glCreateShader(GL_FRAGMENT_SHADER)
-        glShaderSource(frag_shader, frag_shader_code)
-        glCompileShader(frag_shader)
+        # check for linking errors
+        success = glGetProgramiv(self.shaderProgram, GL_LINK_STATUS)
+        if not success:
+            infoLog = glGetProgramInfoLog(self.shaderProgram)
+            print("ERROR::SHADER::PROGRAM::LINKING_FAILED\n", infoLog)
 
-        self.shader_program = glCreateProgram()
-        glAttachShader(self.shader_program, vertex_shader)
-        glAttachShader(self.shader_program, frag_shader)
-        glLinkProgram(self.shader_program)
+        glDeleteShader(vertexShader)
+        glDeleteShader(fragmentShader)
 
-        glDeleteShader(vertex_shader)
-        glDeleteShader(frag_shader)
-
-    def initGeometry(self):
-        """Geometry initialization goes here"""
-        self.triangle_vertex_array = np.array([
-            # -0.5, -0.5, 0.0,  # Bottom left
-            # 0.5, -0.5, 0.0,   # Bottom right
-            # 0.5,  0.5, 0.0,   # Top right
-            # -0.5,  0.5, 0.0  # Top left
-            -0.5, -0.5, 0.0,  # Bottom left
-            0.5, -0.5, 0.0,  # Bottom right
-            0.0, 0.5, 0.0  # Top left
+        # set up vertex data (and buffer(s)) and configure vertex attributes
+        vertices = np.array([
+            0.5,  0.5, 0.0,  # top right
+            0.5, -0.5, 0.0,  # bottom right
+            -0.5, -0.5, 0.0,  # bottom left
+            -0.5,  0.5, 0.0   # top left
         ], dtype=np.float32)
 
-        # Indices for the two triangles that compose the square
-        self.indices = np.array([
-            0, 1, 2,  # First triangle
-            0, 2, 3   # Second triangle
-        ], dtype=np.uint)
+        indices = np.array([
+            0, 1, 3,  # first Triangle
+            1, 2, 3   # second Triangle
+        ], dtype=np.uint32)
 
-        self.vertex_array_object = glGenVertexArrays(1)
-        self.array_buffer = glGenBuffers(1)
+        self.VAO = glGenVertexArrays(1)
+        VBO = glGenBuffers(1)
+        EBO = glGenBuffers(1)
 
-        glBindVertexArray(self.vertex_array_object)
+        glBindVertexArray(self.VAO)
+        glBindBuffer(GL_ARRAY_BUFFER, VBO)
+        glBufferData(GL_ARRAY_BUFFER, vertices.nbytes, vertices, GL_STATIC_DRAW)
 
-        glBindBuffer(GL_ARRAY_BUFFER, self.array_buffer)
-        glBufferData(GL_ARRAY_BUFFER, self.triangle_vertex_array.nbytes, self.triangle_vertex_array, GL_STATIC_DRAW)
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO)
+        glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.nbytes, indices, GL_STATIC_DRAW)
 
-        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * ctypes.sizeof(GLfloat), None)
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * 4, ctypes.c_void_p(0))
         glEnableVertexAttribArray(0)
 
         glBindBuffer(GL_ARRAY_BUFFER, 0)
@@ -96,12 +86,14 @@ class GLWidget(QOpenGLWidget):
     def paintGL(self) -> None:
         """Rendering goes here"""
         super().paintGL()
+        # render
         glClearColor(0.2, 0.3, 0.3, 1.0)
         glClear(GL_COLOR_BUFFER_BIT)
 
-        glUseProgram(self.shader_program)
-        glBindVertexArray(self.vertex_array_object)
-        glDrawArrays(GL_TRIANGLES, 0, 3)
+        # draw our first triangle
+        glUseProgram(self.shaderProgram)
+        glBindVertexArray(self.VAO)
+        glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, None)
 
 
 class MainWindow(QMainWindow):
