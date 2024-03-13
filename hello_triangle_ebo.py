@@ -27,56 +27,81 @@ class GLWidget(QOpenGLWidget):
     def __init__(self) -> None:
         super().__init__()
         self.triangle_vertex_array = None
+        self.indices = None
         self.shader_program = None
-        self.gl = GL(self.context())
-        self.array_buffer = QOpenGLBuffer()
-        self.vao = QOpenGLVertexArrayObject()
+        self.array_buffer = None
+        self.index_buffer = None
+        self.vertex_array_object = None
 
     def initializeGL(self) -> None:
         super().initializeGL()
-        # I have no idea what is going on
-        # TODO: Have some idea about what is going on
-        self.gl.initializeOpenGLFunctions()
-        self.gl.glClearColor(0.2, 0.3, 0.3, 1.0)
+        # Vertex data for a simple square made of two triangles
 
-        self.shader_program = QOpenGLShaderProgram()
-        self.shader_program.addShaderFromSourceCode(QOpenGLShader.ShaderTypeBit.Vertex, vert_shader_code)
-        self.shader_program.addShaderFromSourceCode(QOpenGLShader.ShaderTypeBit.Fragment, frag_shader_code)
-        self.shader_program.link()
-        self.shader_program.bind()
+        self.initShaders()
+        self.initGeometry()
 
-        self.triangle_vertex_array = np.array([
-            -0.5, -0.5, 0.0,
-            0.5, -0.5, 0.0,
-            0.0, 0.5, 0.0
-        ], dtype="float32")
-        self.array_buffer.create()
-        self.vao.create()
+    def initShaders(self):
+        vertex_shader = glCreateShader(GL_VERTEX_SHADER)
+        glShaderSource(vertex_shader, vert_shader_code)
+        glCompileShader(vertex_shader)
 
-        self.array_buffer.bind()
-        self.array_buffer.allocate(self.triangle_vertex_array.tobytes(), self.triangle_vertex_array.nbytes)
+        frag_shader = glCreateShader(GL_FRAGMENT_SHADER)
+        glShaderSource(frag_shader, frag_shader_code)
+        glCompileShader(frag_shader)
 
-        self.vao.bind()
-        posAttrib = self.shader_program.attributeLocation("aPos")
-        self.shader_program.enableAttributeArray(posAttrib)
-        self.shader_program.setAttributeBuffer(posAttrib, GL_FLOAT, 0, 3, 3 * ctypes.sizeof(GLfloat))
+        self.shader_program = glCreateProgram()
+        glAttachShader(self.shader_program, vertex_shader)
+        glAttachShader(self.shader_program, frag_shader)
+        glLinkProgram(self.shader_program)
 
-        self.shader_program.release()
+        glDeleteShader(vertex_shader)
+        glDeleteShader(frag_shader)
 
     def initGeometry(self):
         """Geometry initialization goes here"""
+        self.triangle_vertex_array = np.array([
+            # -0.5, -0.5, 0.0,  # Bottom left
+            # 0.5, -0.5, 0.0,   # Bottom right
+            # 0.5,  0.5, 0.0,   # Top right
+            # -0.5,  0.5, 0.0  # Top left
+            -0.5, -0.5, 0.0,  # Bottom left
+            0.5, -0.5, 0.0,  # Bottom right
+            0.0, 0.5, 0.0  # Top left
+        ], dtype=np.float32)
+
+        # Indices for the two triangles that compose the square
+        self.indices = np.array([
+            0, 1, 2,  # First triangle
+            0, 2, 3   # Second triangle
+        ], dtype=np.uint)
+
+        self.vertex_array_object = glGenVertexArrays(1)
+        self.array_buffer = glGenBuffers(1)
+
+        glBindVertexArray(self.vertex_array_object)
+
+        glBindBuffer(GL_ARRAY_BUFFER, self.array_buffer)
+        glBufferData(GL_ARRAY_BUFFER, self.triangle_vertex_array.nbytes, self.triangle_vertex_array, GL_STATIC_DRAW)
+
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * ctypes.sizeof(GLfloat), None)
+        glEnableVertexAttribArray(0)
+
+        glBindBuffer(GL_ARRAY_BUFFER, 0)
+        glBindVertexArray(0)
 
     def resizeGL(self, w: int, h: int) -> None:
         super().resizeGL(w, h)
+        glViewport(0, 0, w, h)
 
     def paintGL(self) -> None:
         """Rendering goes here"""
         super().paintGL()
+        glClearColor(0.2, 0.3, 0.3, 1.0)
+        glClear(GL_COLOR_BUFFER_BIT)
 
-        self.shader_program.bind()
-        self.array_buffer.bind()
-        self.gl.glDrawArrays(GL_TRIANGLES, 0, 3)
-        self.shader_program.release()
+        glUseProgram(self.shader_program)
+        glBindVertexArray(self.vertex_array_object)
+        glDrawArrays(GL_TRIANGLES, 0, 3)
 
 
 class MainWindow(QMainWindow):
