@@ -1,4 +1,3 @@
-import ctypes
 import sys
 
 import numpy as np
@@ -73,7 +72,7 @@ class GLWidget(QOpenGLWidget):
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO)
         glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.nbytes, indices, GL_STATIC_DRAW)
 
-        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * 4, ctypes.c_void_p(0))
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * ctypes.sizeof(GLfloat), None)
         glEnableVertexAttribArray(0)
 
         glBindBuffer(GL_ARRAY_BUFFER, 0)
