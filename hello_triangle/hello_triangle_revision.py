@@ -20,6 +20,19 @@ class GLWidget(QOpenGLWidget):
         super().__init__()
         self.shader_program = None
         self.VAO = None
+        self.wire_toggle = False
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+
+    def keyReleaseEvent(self, event):
+        super().keyReleaseEvent(event)
+        self.wire_toggle = False
+        self.update()
+
+    def keyPressEvent(self, event):
+        super().keyPressEvent(event)
+        if event.key() == Qt.Key.Key_1:
+            self.wire_toggle = True
+            self.update()
 
     def init_shaders(self):
         """Initialize the shaders"""
@@ -119,9 +132,10 @@ class GLWidget(QOpenGLWidget):
         glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, None)
 
         # Draw triangles Outline
-        glUseProgram(self.shader_program2)
-        glPolygonMode(GL_FRONT_AND_BACK, GL_LINE)
-        glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, None)
+        if self.wire_toggle:
+            glUseProgram(self.shader_program2)
+            glPolygonMode(GL_FRONT_AND_BACK, GL_LINE)
+            glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, None)
 
 
 if __name__ == "__main__":
