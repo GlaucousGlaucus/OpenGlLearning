@@ -9,8 +9,8 @@ from PySide6.QtWidgets import QMainWindow, QApplication
 
 from util import read_shader
 
-vert_shader_code = read_shader("../vertex_shader.glsl")
-frag_shader_code = read_shader("../fragment_shader.glsl")
+vert_shader_code = read_shader("../hello_triangle/vertex_shader.glsl")
+frag_shader_code = read_shader("../hello_triangle/fragment_shader.glsl")
 
 
 class GLWidget(QOpenGLWidget):
