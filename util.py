@@ -1,5 +1,4 @@
 import os
-from pathlib import Path
 
 
 def read_shader(mod_file_path: str, filepath: str) -> str:

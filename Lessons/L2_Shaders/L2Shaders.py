@@ -1,8 +1,11 @@
+import ctypes
+import math
 import sys
+import time
 
 import numpy as np
 from OpenGL.GL import *
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QTimer, Qt
 from PySide6.QtOpenGLWidgets import QOpenGLWidget
 from PySide6.QtWidgets import QMainWindow, QApplication
 
@@ -22,6 +25,13 @@ class GLWidget(QOpenGLWidget):
         self.VAO = None
         self.wire_toggle = False
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+
+        self.repaint_timer = QTimer()
+        self.repaint_timer.setInterval(1000 // 60)  # Limit update to 60 fps
+        self.repaint_timer.timeout.connect(self.update)
+        self.repaint_timer.start()
+
+        self.last_time = None
 
     def keyReleaseEvent(self, event):
         super().keyReleaseEvent(event)
@@ -72,12 +82,12 @@ class GLWidget(QOpenGLWidget):
     def initialize_geometry(self):
         """Initialize the geometry"""
         vertices = np.array([
-            0.5, -0.5, 0.0,  # bottom right
-            -0.5, -0.5, 0.0,  # bottom left
-            -0.5,  0.5, 0.0,   # top left
-            0.5, -0.5, 0.0,  # bottom right
-            0.5, 0.5, 0.0,  # top right
-            -0.5, 0.5, 0.0,  # top left
+            0.5, -0.5, 0.0, 1.0, 0.0, 0.0,  # bottom right
+            -0.5, -0.5, 0.0, 0.0, 1.0, 0.0,  # bottom left
+            -0.5,  0.5, 0.0, 0.0, 0.0, 1.0,   # top left
+            0.5, -0.5, 0.0, 1.0, 0.0, 0.0,  # bottom right
+            0.5, 0.5, 0.0, 0.0, 1.0, 0.0,  # top right
+            -0.5, 0.5, 0.0, 0.0, 0.0, 1.0  # top left
         ], dtype=np.float32)
 
         indices = np.array([
@@ -97,8 +107,14 @@ class GLWidget(QOpenGLWidget):
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO)
         glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.nbytes, indices, GL_STATIC_DRAW)
 
-        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * ctypes.sizeof(GLfloat), None)
+        stride = 6 * ctypes.sizeof(GLfloat)
+        # Vertex attribute
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, stride, None)
         glEnableVertexAttribArray(0)
+        # Color attribute
+        offset = ctypes.c_void_p(3 * ctypes.sizeof(GLfloat))
+        glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, stride, offset)
+        glEnableVertexAttribArray(1)
 
         glBindBuffer(GL_ARRAY_BUFFER, 0)
         glBindVertexArray(0)
@@ -113,6 +129,10 @@ class GLWidget(QOpenGLWidget):
         # Draw in wireframe
         # glPolygonMode(GL_FRONT_AND_BACK, GL_LINE)
 
+        # Get the max vertex attributes available, normally 16
+        max_vertex_attributes = glGetIntegerv(GL_MAX_VERTEX_ATTRIBS)
+        logger.info(f"Max Vertex Attributes: {max_vertex_attributes}")
+
     def resizeGL(self, w, h):
         super().resizeGL(w, h)
         glViewport(0, 0, w, h)
@@ -124,8 +144,16 @@ class GLWidget(QOpenGLWidget):
         glClear(GL_COLOR_BUFFER_BIT)
 
         # Render our geometry
+        time_val = time.time()
+        self.last_time = time_val
+        col_value = abs(math.sin(time_val))
+        factor_uniform_loc = glGetUniformLocation(self.shader_program, "factor")
+
         glUseProgram(self.shader_program)
+        glUniform4f(factor_uniform_loc, 1/col_value, col_value, 1 - col_value, 1.0)
+
         glBindVertexArray(self.VAO)
+
         # glDrawArrays(GL_TRIANGLES, 0, 3)
         # glDrawArrays(GL_TRIANGLES, 3, 3)
         glPolygonMode(GL_FRONT_AND_BACK, GL_FILL)
@@ -133,7 +161,9 @@ class GLWidget(QOpenGLWidget):
 
         # Draw triangles Outline
         if self.wire_toggle:
+            factor_uniform_loc = glGetUniformLocation(self.shader_program, "factor")
             glUseProgram(self.shader_program2)
+            glUniform4f(factor_uniform_loc, 1 / col_value, col_value, 1 - col_value, 1.0)
             glPolygonMode(GL_FRONT_AND_BACK, GL_LINE)
             glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, None)
 
