@@ -93,6 +93,8 @@ class GLWidget(QOpenGLWidget):
 
     def initializeGL(self):
         super().initializeGL()
+        # glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
+        # glEnable(GL_BLEND)
         # Init the shaders first
         self.init_shaders()
         # Init the geometry
@@ -125,6 +127,7 @@ class GLWidget(QOpenGLWidget):
         self.shader.use()
         vec_4f = (1 / col_value, col_value, 1 - col_value, 1.0)
         self.shader.set_vec4f("factor", vec_4f)
+        self.shader.set_float("alpha", abs(math.sin(time_val)))
 
         glBindVertexArray(self.VAO)
 
