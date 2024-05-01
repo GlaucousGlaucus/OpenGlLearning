@@ -5,11 +5,13 @@ import time
 import numpy as np
 from OpenGL.GL import *
 from PySide6.QtCore import QTimer, Qt
+from PySide6.QtGui import QImage
 from PySide6.QtOpenGLWidgets import QOpenGLWidget
 from PySide6.QtWidgets import QApplication, QMainWindow
 from loguru import logger
 
 from shader_util import Shader
+from util import q_image_to_numpy
 
 VERT_SHADER_PATH = "vertex_shader.glsl"
 FRAG_SHADER_PATH = "fragment_shader.glsl"
@@ -53,18 +55,18 @@ class GLWidget(QOpenGLWidget):
 
     def initialize_geometry(self):
         """Initialize the geometry"""
+        length = 0.8
         vertices = np.array([
-            0.5, -0.5, 0.0, 1.0, 0.0, 0.0,  # bottom right
-            -0.5, -0.5, 0.0, 0.0, 1.0, 0.0,  # bottom left
-            -0.5,  0.5, 0.0, 0.0, 0.0, 1.0,   # top left
-            0.5, -0.5, 0.0, 1.0, 0.0, 0.0,  # bottom right
-            0.5, 0.5, 0.0, 0.0, 1.0, 0.0,  # top right
-            -0.5, 0.5, 0.0, 0.0, 0.0, 1.0  # top left
+            # positions        # colors         # texture coordinates
+            length,  length, 0.0,    1.0, 0.0, 0.0,   1.0, 1.0,  # top right
+            length, -length, 0.0,    0.0, 1.0, 0.0,   1.0, 0.0,  # bottom right
+           -length, -length, 0.0,    0.0, 0.0, 1.0,   0.0, 0.0,  # bottom left
+           -length,  length, 0.0,    1.0, 1.0, 0.0,   0.0, 1.0   # top left
         ], dtype=np.float32)
 
         indices = np.array([
-            0, 1, 2,  # Triangle 1
-            3, 4, 5  # Triangle 2
+            0, 1, 3,  # Triangle 1
+            1, 2, 3  # Triangle 2
         ], dtype=np.uint32)
 
         self.VAO = glGenVertexArrays(1)
@@ -79,22 +81,47 @@ class GLWidget(QOpenGLWidget):
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO)
         glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.nbytes, indices, GL_STATIC_DRAW)
 
-        stride = 6 * ctypes.sizeof(GLfloat)
+        stride = 8 * ctypes.sizeof(GLfloat)
+
         # Vertex attribute
         glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, stride, None)
         glEnableVertexAttribArray(0)
+
         # Color attribute
         offset = ctypes.c_void_p(3 * ctypes.sizeof(GLfloat))
         glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, stride, offset)
         glEnableVertexAttribArray(1)
 
-        glBindBuffer(GL_ARRAY_BUFFER, 0)
-        glBindVertexArray(0)
+        # Texture attribute
+        offset = ctypes.c_void_p(6 * ctypes.sizeof(GLfloat))
+        glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, stride, offset)
+        glEnableVertexAttribArray(2)
+
+        # glBindBuffer(GL_ARRAY_BUFFER, 0)
+        # glBindVertexArray(0)
+
+        # Texture loading
+        array = q_image_to_numpy(QImage("img.jpg"))
+        height, width, channels = array.shape
+        self.texture = glGenTextures(1)
+
+        glBindTexture(GL_TEXTURE_2D, self.texture)
+
+        # Set wrapping modes, STR Cords --Similar to--> XYZ Cords
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_MIRRORED_REPEAT)  # X Axis wrapping
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_MIRRORED_REPEAT)  # Y Axis wrapping
+
+        # Set texture filtering parameters
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR)
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
+
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, array)
+        glGenerateMipmap(GL_TEXTURE_2D)
 
     def initializeGL(self):
         super().initializeGL()
-        # glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
-        # glEnable(GL_BLEND)
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
+        glEnable(GL_BLEND)
         # Init the shaders first
         self.init_shaders()
         # Init the geometry
@@ -122,13 +149,14 @@ class GLWidget(QOpenGLWidget):
         # Render our geometry
         time_val = time.time()
         self.last_time = time_val
-        col_value = abs(math.sin(time_val))
+        col_value = math.sin(time_val)
 
         self.shader.use()
         vec_4f = (1 / col_value, col_value, 1 - col_value, 1.0)
         self.shader.set_vec4f("factor", vec_4f)
-        self.shader.set_float("alpha", abs(math.sin(time_val)))
+        self.shader.set_float("alpha", math.sin(time_val) + 0.5)
 
+        glBindTexture(GL_TEXTURE_2D, self.texture)
         glBindVertexArray(self.VAO)
 
         glPolygonMode(GL_FRONT_AND_BACK, GL_FILL)
