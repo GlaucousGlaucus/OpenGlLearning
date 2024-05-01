@@ -23,9 +23,11 @@ class GLWidget(QOpenGLWidget):
         self.index_buffer = None
         self.vertex_array_object = None
 
-    def initializeGL(self) -> None:
-        super().initializeGL()
-        # build and compile our shader program
+    def init_shaders(self) -> None:
+        """
+        Builds and compiles the shaders
+        :return:
+        """
         vertexShader = glCreateShader(GL_VERTEX_SHADER)
         glShaderSource(vertexShader, vert_shader_code)
         glCompileShader(vertexShader)
@@ -47,6 +49,11 @@ class GLWidget(QOpenGLWidget):
 
         glDeleteShader(vertexShader)
         glDeleteShader(fragmentShader)
+
+    def initializeGL(self) -> None:
+        super().initializeGL()
+        # build and compile our shader program
+        self.init_shaders()
 
         # set up vertex data (and buffer(s)) and configure vertex attributes
         vertices = np.array([
